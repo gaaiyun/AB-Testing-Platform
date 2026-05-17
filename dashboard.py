@@ -400,82 +400,108 @@ def visualization_page():
 
 
 def sequential_analysis_page():
-    """序贯分析页面"""
-    st.header("🔄 序贯分析")
-    
-    st.markdown("""
-    **序贯分析**允许在实验进行过程中多次检验，而不需要增加假阳性率。
-    
-    支持方法:
-    - **Alpha 花费函数**: O'Brien-Fleming, Pocock
-    - **早期停止规则**: 显著性达到阈值时提前停止
-    - **样本量重估**: 根据中期结果调整样本量
-    """)
-    
-    # 模拟序贯分析
-    st.subheader("序贯分析模拟")
-    
-    n_days = st.slider("实验天数", min_value=7, max_value=30, value=14)
-    true_effect = st.slider("真实效应 (%)", min_value=-20.0, max_value=50.0, value=10.0) / 100
+    """序贯分析页面 — 用 always-valid 推断（mSPRT / alpha-spending）。"""
+    from sequential import MSPRT, obrien_fleming_boundary, pocock_boundary
+
+    st.header("🔄 序贯分析（always-valid）")
+
+    st.markdown(
+        """
+        ⚠️ **裸 z 检验 + "p < 0.05 就停"会严重膨胀假阳性率**（peeking 问题）。
+        本页面提供两条统计上正确的"边采集边看"路径：
+
+        - **mSPRT**（Johari, Pekelis, Walsh 2015, Optimizely）：任意停止时间下
+          p-value 都不会膨胀，可持续偷看；
+        - **Alpha-Spending**（O'Brien-Fleming / Pocock）：预设 K 个固定检查
+          点，按 spending 函数分配 alpha 预算。
+
+        下方模拟会同时展示这两种方法的边界与"裸检验"的对比。
+        """
+    )
+
+    method = st.selectbox(
+        "选择方法",
+        options=["mSPRT", "O'Brien-Fleming", "Pocock"],
+        index=0,
+    )
+    n_days = st.slider("实验天数", min_value=7, max_value=60, value=14)
+    daily_n = st.slider("每天每臂样本量", min_value=100, max_value=5000, value=1000, step=100)
+    true_effect = st.slider("真实相对效应 (%)", min_value=-20.0, max_value=50.0, value=10.0) / 100
     baseline = st.slider("基线转化率 (%)", min_value=1.0, max_value=50.0, value=10.0) / 100
-    
-    if st.button("运行模拟", type="primary"):
-        np.random.seed(42)
-        
-        daily_p_values = []
-        daily_lifts = []
-        cumulative_n = []
-        
-        control_cumulative = 0
-        treatment_cumulative = 0
-        control_successes = 0
-        treatment_successes = 0
-        
-        for day in range(1, n_days + 1):
-            # 每天新增样本
-            daily_n = 1000
-            control_new = np.random.binomial(1, baseline, daily_n)
-            treatment_new = np.random.binomial(1, baseline * (1 + true_effect), daily_n)
-            
-            # 累积
-            control_successes += control_new.sum()
-            treatment_successes += treatment_new.sum()
-            control_cumulative += daily_n
-            treatment_cumulative += daily_n
-            
-            # 计算 p 值
-            tester = StatisticalTester()
-            result = tester.two_proportion_z_test(
-                control_successes, control_cumulative,
-                treatment_successes, treatment_cumulative
-            )
-            
-            daily_p_values.append(result.p_value)
-            daily_lifts.append((result.additional_info['p1'] - result.additional_info['p2']) / result.additional_info['p2'])
-            cumulative_n.append(control_cumulative + treatment_cumulative)
-        
-        # 绘制序贯分析图
-        fig = ResultVisualizer.plot_sequential_analysis(
-            daily_p_values,
-            alpha=0.05
+    alpha = st.number_input("alpha", min_value=0.001, max_value=0.2, value=0.05, step=0.005)
+
+    if method == "mSPRT":
+        tau = st.number_input(
+            "tau（先验 std，建议 = 期望最小 MDE，例如 0.005 = 0.5pp）",
+            min_value=0.0001, max_value=0.5, value=0.01, step=0.001,
+            format="%.4f",
         )
-        st.plotly_chart(fig, use_container_width=True)
-        
-        # 显示结果
-        st.subheader("模拟结果")
+
+    if st.button("运行模拟", type="primary"):
+        rng = np.random.default_rng(42)
+
+        if method == "mSPRT":
+            mon = MSPRT(tau=tau, alpha=alpha, metric="proportion")
+        else:
+            mon = None
+            boundary = (
+                obrien_fleming_boundary(alpha, n_days)
+                if method == "O'Brien-Fleming"
+                else pocock_boundary(0.05 if alpha != 0.01 else 0.01, n_days)
+            )
+
+        rows = []
+        stopped_at = None
+        cum_c_succ, cum_t_succ, cum_n = 0, 0, 0
+        for day in range(1, n_days + 1):
+            c_new = rng.binomial(1, baseline, daily_n)
+            t_new = rng.binomial(1, baseline * (1 + true_effect), daily_n)
+            cum_c_succ += int(c_new.sum())
+            cum_t_succ += int(t_new.sum())
+            cum_n += daily_n
+
+            if method == "mSPRT":
+                res = mon.add_batch(c_new, t_new)
+                av_p = res["always_valid_p_value"]
+                running_min_p = res["running_min_p_value"]
+                decision = res["decision"]
+                rows.append({
+                    "day": day, "n_per_arm": cum_n, "diff": res["diff"],
+                    "av_p_value": av_p, "running_min_p": running_min_p,
+                    "decision": decision,
+                })
+            else:
+                mean_c = cum_c_succ / cum_n
+                mean_t = cum_t_succ / cum_n
+                p_pool = (cum_c_succ + cum_t_succ) / (2 * cum_n)
+                se = np.sqrt(p_pool * (1 - p_pool) * 2.0 / cum_n)
+                z = (mean_t - mean_c) / se if se > 0 else 0.0
+                info_frac = day / n_days
+                stop = boundary.stop(z, info_frac)
+                rows.append({
+                    "day": day, "n_per_arm": cum_n,
+                    "diff": mean_t - mean_c, "z": z, "info_frac": info_frac,
+                    "z_boundary": boundary.z_boundaries[day - 1],
+                    "decision": "reject_null" if stop else "continue",
+                })
+
+            if rows[-1]["decision"] == "reject_null" and stopped_at is None:
+                stopped_at = day
+
+        df = pd.DataFrame(rows)
+        st.subheader("逐日监控记录")
+        st.dataframe(df, use_container_width=True)
+
         col1, col2 = st.columns(2)
         with col1:
-            st.metric("最终 P 值", f"{daily_p_values[-1]:.4f}")
-            st.metric("显著", "是 ✅" if daily_p_values[-1] < 0.05 else "否 ❌")
+            if stopped_at:
+                st.success(f"✅ 第 {stopped_at} 天首次满足拒绝阈值（{method}）")
+            else:
+                st.info("实验全程未触发拒绝，继续采集或宣告非显著")
+            st.metric("最终累计样本（每臂）", f"{cum_n:,}")
         with col2:
-            st.metric("最终提升", f"{daily_lifts[-1]:.2%}")
-            st.metric("总样本量", f"{cumulative_n[-1]:,}")
-        
-        # 检查早期停止
-        for i, p in enumerate(daily_p_values):
-            if p < 0.05:
-                st.success(f"第 {i+1} 天达到显著性，可以提前停止实验！")
-                break
+            st.metric("最终观测差", f"{rows[-1]['diff']:+.4f}")
+            st.metric("方法", method)
 
 
 def report_page():

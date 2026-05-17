@@ -137,21 +137,21 @@ class StatisticalTester:
             TestResult 对象
         """
         t_stat, p_value = stats.ttest_ind(sample_1, sample_2, equal_var=equal_var)
-        
-        # 置信区间
+
         mean_diff = np.mean(sample_1) - np.mean(sample_2)
         n1, n2 = len(sample_1), len(sample_2)
-        
+        var1 = np.var(sample_1, ddof=1)
+        var2 = np.var(sample_2, ddof=1)
+
         if equal_var:
-            # 合并方差
-            var1, var2 = np.var(sample_1, ddof=1), np.var(sample_2, ddof=1)
             sp = np.sqrt(((n1 - 1) * var1 + (n2 - 1) * var2) / (n1 + n2 - 2))
-            se = sp * np.sqrt(1/n1 + 1/n2)
+            se = sp * np.sqrt(1 / n1 + 1 / n2)
             df = n1 + n2 - 2
         else:
-            # Welch's t-test
-            se = np.sqrt(np.var(sample_1, ddof=1)/n1 + np.var(sample_2, ddof=1)/n2)
-            df = (var1/n1 + var2/n2)**2 / ((var1/n1)**2/(n1-1) + (var2/n2)**2/(n2-1))
+            se = np.sqrt(var1 / n1 + var2 / n2)
+            df = (var1 / n1 + var2 / n2) ** 2 / (
+                (var1 / n1) ** 2 / (n1 - 1) + (var2 / n2) ** 2 / (n2 - 1)
+            )
         
         t_crit = stats.t.ppf(1 - alpha / 2, df)
         ci = (mean_diff - t_crit * se, mean_diff + t_crit * se)
