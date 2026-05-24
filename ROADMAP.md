@@ -12,11 +12,11 @@
 - ✅ 32 个新测试（mSPRT 用 100 次蒙特卡洛验证 always-valid 性质）
 - ✅ 清 `__pycache__/` `.coverage` 入库 + 补 `.gitignore`
 
-## v3（计划）
+## v3（进行中）
 
 ### 指标族扩展
-- [ ] **Ratio metrics**（如人均订单数 = 订单数/用户数）的 delta method
-      标准误，常规 z 检验在这类指标上是错的
+- ✅ **Ratio metrics**（人均订单数等）的 delta method 标准误
+      —— `ratio_metrics.py` 已实现，22 测试覆盖（含蒙特卡洛假阳性率验证）
 - [ ] **Count metrics** with Poisson / NegBinomial 模型
 - [ ] **Survival metrics**（留存曲线）的 log-rank test
 
