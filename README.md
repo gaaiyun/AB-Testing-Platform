@@ -12,6 +12,12 @@ v2 引入了三个**别处不容易凑齐的功能**：
 | **CUPED** (`cuped.py`) | 用 pre-experiment 协变量减 30%~50% 样本量 | [Deng, Xu, Kohavi, Walker (2013)](https://exp-platform.com/Documents/2013-02-CUPED-ImprovingSensitivityOfControlledExperiments.pdf) |
 | **Multi-Armed Bandit** (`mab.py`) | 自适应分流，最小化机会成本 | UCB1 / Thompson sampling |
 
+v3 第一项已交付：
+
+| 模块 | 解决什么问题 | 参考文献 |
+|---|---|---|
+| **Ratio metrics delta method** (`ratio_metrics.py`) | 人均订单数 / ARPU / CTR 这类"X̄/Ȳ"指标的正确 SE 估计 + 样本量计算 | [Deng, Knoblich, Lu (2018) — Microsoft Experimentation Platform](https://www.exp-platform.com/Documents/2018-DengKnoblichLu-Delta_Method.pdf); Kohavi/Tang/Xu (2020) Ch. 18 |
+
 外加一个**修复**：v1 在 dashboard "序贯分析" 页面里直接写了 `if p < 0.05: 停止` —— 这是 A/B 测试领域**最经典的错误**之一（peeking 会把真实假阳性率从 5% 拉到 20%+）。v2 把这段替换成 mSPRT。
 
 ---
