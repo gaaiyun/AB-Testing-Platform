@@ -22,6 +22,9 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
+          # 测试套件针对 pandas 2.x 编写（如 'H' 频率别名），pandas 3.0 已移除该用法；
+          # 在 CI 中固定到 2.x 以匹配开发环境，避免无界 ">=2.0.0" 解析到 3.x。
+          pip install "pandas<3" "numpy<2.3"
 
       - name: Run tests
         run: python -m pytest tests/ -q
