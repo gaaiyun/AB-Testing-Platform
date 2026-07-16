@@ -250,7 +250,9 @@ class StatisticalTester:
             'original_alpha': alpha,
             'adjusted_alpha': adjusted_alpha,
             'adjusted_p_values': adjusted_p_values,
-            'significant': [p < adjusted_alpha for p in adjusted_p_values],
+            # adjusted p-values are compared with the original alpha. Comparing
+            # them with adjusted_alpha would apply Bonferroni twice.
+            'significant': [p <= alpha for p in adjusted_p_values],
             'n_tests': m
         }
     
@@ -283,11 +285,9 @@ class StatisticalTester:
             threshold = 0
         
         # 计算 adjusted p-values
-        adjusted_p = np.zeros(m)
-        for i in range(m - 1, -1, -1):
-            adjusted_p[i] = min(1.0, sorted_p[i] * m / ranks[i])
-            if i > 0:
-                adjusted_p[i] = min(adjusted_p[i], adjusted_p[i - 1] * (ranks[i] / ranks[i-1]))
+        raw_adjusted = sorted_p * m / ranks
+        adjusted_p = np.minimum.accumulate(raw_adjusted[::-1])[::-1]
+        adjusted_p = np.clip(adjusted_p, 0.0, 1.0)
         
         # 恢复原始顺序
         adjusted_p_original = np.zeros(m)
@@ -297,9 +297,9 @@ class StatisticalTester:
             'method': 'Benjamini-Hochberg FDR',
             'original_alpha': alpha,
             'adjusted_p_values': adjusted_p_original.tolist(),
-            'significant': adjusted_p_original < alpha,
+            'significant': adjusted_p_original <= alpha,
             'threshold': threshold,
-            'n_rejected': np.sum(adjusted_p_original < alpha)
+            'n_rejected': int(np.sum(adjusted_p_original <= alpha))
         }
 
 

@@ -163,8 +163,15 @@ def ratio_metric_test(
     diff = t.ratio - c.ratio
     var_diff = c.var_ratio + t.var_ratio
     se_diff = math.sqrt(var_diff) if var_diff > 0 else 0.0
-    z = diff / se_diff if se_diff > 1e-12 else 0.0
-    p_two_sided = 2.0 * (1.0 - stats.norm.cdf(abs(z)))
+    if se_diff > 1e-12:
+        z = diff / se_diff
+        p_two_sided = 2.0 * (1.0 - stats.norm.cdf(abs(z)))
+    elif abs(diff) <= 1e-12:
+        z = 0.0
+        p_two_sided = 1.0
+    else:
+        z = math.copysign(math.inf, diff)
+        p_two_sided = 0.0
 
     # 双尾 CI
     z_alpha = stats.norm.ppf(1 - alpha / 2)
