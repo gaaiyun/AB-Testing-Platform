@@ -110,6 +110,12 @@ class TestStatisticalTester:
         # 调整后的 p 值应该更大或等于原值
         for orig, adj in zip(p_values, result['adjusted_p_values']):
             assert adj >= orig
+
+    def test_bonferroni_uses_adjusted_p_or_adjusted_alpha_once(self):
+        """调整后的 p 值应和原 alpha 比较，不能再除一次检验数。"""
+        result = StatisticalTester.bonferroni_correction([0.009, 0.02], alpha=0.05)
+        assert result['adjusted_p_values'] == pytest.approx([0.018, 0.04])
+        assert result['significant'] == [True, True]
     
     def test_fdr_correction(self):
         """测试 FDR 校正"""
@@ -122,6 +128,14 @@ class TestStatisticalTester:
         assert 'Benjamini-Hochberg' in result['method']
         assert len(result['adjusted_p_values']) == 5
         assert 'n_rejected' in result
+
+    def test_fdr_matches_benjamini_hochberg_step_up_values(self):
+        result = StatisticalTester.fdr_correction([0.01, 0.02, 0.04, 0.20], alpha=0.05)
+        assert result['adjusted_p_values'] == pytest.approx(
+            [0.04, 0.04, 0.0533333333, 0.20]
+        )
+        assert result['significant'].tolist() == [True, True, False, False]
+        assert result['n_rejected'] == 2
     
     def test_run_comprehensive_test(self):
         """测试综合检验"""

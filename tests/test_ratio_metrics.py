@@ -168,6 +168,17 @@ def test_ratio_test_confidence_interval_contains_zero_under_null():
     assert ci_low <= ci_high
 
 
+def test_ratio_constant_groups_with_different_ratios_are_significant():
+    result = ratio_metric_test(
+        [1.0, 1.0, 1.0], [1.0, 1.0, 1.0],
+        [2.0, 2.0, 2.0], [1.0, 1.0, 1.0],
+    )
+    assert result.diff_ratio == pytest.approx(1.0)
+    assert np.isinf(result.z_statistic)
+    assert result.p_value == 0.0
+    assert result.significant is True
+
+
 def test_ratio_test_alpha_changes_ci_width():
     """alpha 小 → CI 更宽。"""
     rng = np.random.RandomState(0)

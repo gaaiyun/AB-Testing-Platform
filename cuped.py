@@ -150,7 +150,10 @@ def cuped_two_sample(
     var_y = np.var(y_all, ddof=1)
     var_y_adj = np.var(np.concatenate([y_c_adj, y_t_adj]), ddof=1)
     var_reduction = max(0.0, 1.0 - var_y_adj / var_y) if var_y > 0 else 0.0
-    corr = float(np.corrcoef(x_all, y_all)[0, 1]) if len(x_all) > 1 else 0.0
+    if len(x_all) > 1 and np.std(x_all) > 0 and np.std(y_all) > 0:
+        corr = float(np.corrcoef(x_all, y_all)[0, 1])
+    else:
+        corr = 0.0
 
     # 4. Welch's t-test on adjusted
     n_c, n_t = len(y_c_adj), len(y_t_adj)
@@ -161,8 +164,12 @@ def cuped_two_sample(
     diff = mean_t - mean_c
     se = float(np.sqrt(var_c / n_c + var_t / n_t))
     if se == 0:
-        t_stat = 0.0
-        p_value = 1.0
+        if diff == 0:
+            t_stat = 0.0
+            p_value = 1.0
+        else:
+            t_stat = float(np.copysign(np.inf, diff))
+            p_value = 0.0
         ci = (diff, diff)
     else:
         t_stat = diff / se

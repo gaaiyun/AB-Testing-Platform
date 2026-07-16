@@ -74,3 +74,13 @@ def test_sample_size_savings_returns_rho_squared():
     assert estimate_sample_size_savings(0.0) == 0.0
     assert estimate_sample_size_savings(-0.7) == pytest.approx(0.49)
     assert estimate_sample_size_savings(1.0) == pytest.approx(0.99)  # 被 clamp
+
+
+def test_cuped_constant_groups_with_different_means_are_significant():
+    result = cuped_two_sample(
+        np.zeros(4), np.ones(4),
+        np.zeros(4), np.full(4, 2.0),
+    )
+    assert result.adjusted_diff == pytest.approx(1.0)
+    assert np.isinf(result.t_stat)
+    assert result.p_value == 0.0
